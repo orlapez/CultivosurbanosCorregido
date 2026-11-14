@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Terpy.API/Terpy.API.csproj" />
+  <Project Path="Terpy.Shared/Terpy.Shared.csproj" />
+  <Project Path="Terpy.WEB/Terpy.WEB.csproj" Id="2fed10c5-c8e9-464f-aa6a-cfc7f19c608e" />
+</Solution>

@@ -1,0 +1,120 @@
+﻿@page "/siembras/editar/{id:int}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Terpy.Shared.DTOs
+@using Terpy.Shared.Entities
+@using Terpy.Shared.Enums
+@using Terpy.WEB.Repositories
+@inject IRepository repository
+@inject NavigationManager navigationManager
+@inject SweetAlertService swal
+
+<PageTitle>Editar Siembra</PageTitle>
+
+<h3>Editar Siembra</h3>
+
+@if (siembra == null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <EditForm Model="siembra" OnValidSubmit="EditarAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>ID de Zona (No editable):</label>
+            <input class="form-control" value="@zonaId" disabled />
+        </div>
+
+        <div class="mb-3">
+            <label>ID de Cultivo (No editable):</label>
+            <input class="form-control" value="@cultivoId" disabled />
+        </div>
+
+        <div class="mb-3">
+            <label>Fecha de Siembra:</label>
+            <InputDate class="form-control" @bind-Value="siembra.FechaSiembra" />
+            <ValidationMessage For="@(() => siembra.FechaSiembra)" />
+        </div>
+
+        <div class="mb-3">
+            <label>Cantidad Inicial de Plantas:</label>
+            <InputNumber class="form-control" @bind-Value="siembra.CantidadPlantasInicial" />
+            <ValidationMessage For="@(() => siembra.CantidadPlantasInicial)" />
+        </div>
+
+        <div class="mb-3">
+            <label>Estado:</label>
+            <InputSelect class="form-control" @bind-Value="siembra.Estado">
+                @foreach (var estado in Enum.GetValues(typeof(EstadoSiembra)))
+                {
+                    <option value="@estado">@estado</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="@(() => siembra.Estado)" />
+        </div>
+
+        <button class="btn btn-primary" type="submit">Guardar Cambios</button>
+        <button class="btn btn-secondary" type="button" @onclick="Return">Regresar</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private ActualizarSiembraDto? siembra;
+    private int zonaId;
+    private int cultivoId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var responseHTTP = await repository.GetAsync<Siembra>($"api/siembras/{Id}");
+
+        if (responseHTTP.Error)
+        {
+            if (responseHTTP.HttpResponseMessage.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                navigationManager.NavigateTo("/siembras");
+                return;
+            }
+            var mensaje = await responseHTTP.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            navigationManager.NavigateTo("/siembras");
+            return;
+        }
+
+        var siembraDetail = responseHTTP.Response;
+        if (siembraDetail != null)
+        {
+            siembra = new ActualizarSiembraDto
+            {
+                FechaSiembra = siembraDetail.FechaSiembra,
+                CantidadPlantasInicial = siembraDetail.CantidadPlantasInicial,
+                Estado = siembraDetail.Estado
+            };
+            zonaId = siembraDetail.ZonaId;
+            cultivoId = siembraDetail.CultivoId;
+        }
+    }
+
+    private async Task EditarAsync()
+    {
+        var responseHTTP = await repository.PutAsync($"api/siembras/{Id}", siembra);
+
+        if (responseHTTP.Error)
+        {
+            var mensaje = await responseHTTP.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+
+        navigationManager.NavigateTo("/siembras");
+    }
+
+    private void Return()
+    {
+        navigationManager.NavigateTo("/siembras");
+    }
+}

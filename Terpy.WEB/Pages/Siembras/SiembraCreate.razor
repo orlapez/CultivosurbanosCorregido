@@ -1,0 +1,119 @@
+﻿@page "/siembras/crear"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Terpy.Shared.DTOs
+@using Terpy.Shared.Entities
+@using Terpy.WEB.Repositories
+@inject IRepository repository
+@inject NavigationManager navigationManager
+@inject SweetAlertService swal
+
+<PageTitle>Crear Siembra</PageTitle>
+
+<h3>Nueva Siembra</h3>
+
+<EditForm Model="siembra" OnValidSubmit="CrearAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Zona:</label>
+        <InputSelect class="form-control" @bind-Value="siembra.ZonaId">
+            <option value="0">-- Seleccione una zona --</option>
+            @if (zonas != null)
+            {
+                @foreach (var zona in zonas)
+                {
+                    <option value="@zona.Id">@zona.Nombre</option>
+                }
+            }
+        </InputSelect>
+        <ValidationMessage For="@(() => siembra.ZonaId)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Cultivo:</label>
+        <InputSelect class="form-control" @bind-Value="siembra.CultivoId">
+            <option value="0">-- Seleccione un cultivo --</option>
+            @if (cultivos != null)
+            {
+                @foreach (var cultivo in cultivos)
+                {
+                    <option value="@cultivo.Id">@cultivo.Nombre</option>
+                }
+            }
+        </InputSelect>
+        <ValidationMessage For="@(() => siembra.CultivoId)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Fecha de Siembra:</label>
+        <InputDate class="form-control" @bind-Value="siembra.FechaSiembra" />
+        <ValidationMessage For="@(() => siembra.FechaSiembra)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Cantidad Inicial de Plantas:</label>
+        <InputNumber class="form-control" @bind-Value="siembra.CantidadPlantasInicial" />
+        <ValidationMessage For="@(() => siembra.CantidadPlantasInicial)" />
+    </div>
+
+    <button class="btn btn-primary" type="submit">Guardar Cambios</button>
+    <button class="btn btn-secondary" type="button" @onclick="Return">Regresar</button>
+</EditForm>
+
+@code {
+    private CrearSiembraDto siembra = new() { FechaSiembra = DateTime.Today };
+    private List<Zona>? zonas;
+    private List<Cultivo>? cultivos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarZonas();
+        await CargarCultivos();
+    }
+
+    private async Task CargarZonas()
+    {
+        var responseHTTP = await repository.GetAsync<List<Zona>>("api/zonas");
+        if (responseHTTP.Error)
+        {
+            var mensaje = await responseHTTP.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+        zonas = responseHTTP.Response;
+    }
+
+    private async Task CargarCultivos()
+    {
+        var responseHTTP = await repository.GetAsync<List<Cultivo>>("api/cultivos");
+        if (responseHTTP.Error)
+        {
+            var mensaje = await responseHTTP.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+        cultivos = responseHTTP.Response;
+    }
+
+    private async Task CrearAsync()
+    {
+        var responseHTTP = await repository.PostAsync("api/siembras", siembra);
+
+        if (responseHTTP.Error)
+        {
+            var mensaje = await responseHTTP.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+
+        navigationManager.NavigateTo("/siembras");
+    }
+
+    private void Return()
+    {
+        navigationManager.NavigateTo("/siembras");
+    }
+}

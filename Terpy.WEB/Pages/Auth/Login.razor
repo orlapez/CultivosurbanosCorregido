@@ -1,0 +1,87 @@
+@page "/login"
+@inject IRepository Repository
+@inject ILoginService LoginService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@using Terpy.WEB.Auth
+
+<PageTitle>Iniciar sesión - Terpy</PageTitle>
+
+<h1>Iniciar sesión</h1>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+
+<EditForm Model="login" OnValidSubmit="LoginAsync">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label for="email" class="form-label">Correo electrónico</label>
+        <InputText id="email" type="email" autocomplete="username" class="form-control" @bind-Value="login.Email" />
+        <ValidationMessage For="@(() => login.Email)" />
+    </div>
+    <div class="mb-3">
+        <label for="password" class="form-label">Contraseña</label>
+        <InputText id="password" type="password" autocomplete="current-password" class="form-control" @bind-Value="login.Password" />
+        <ValidationMessage For="@(() => login.Password)" />
+    </div>
+    <button type="submit" class="btn btn-primary" disabled="@sending">
+        @(sending ? "Ingresando..." : "Iniciar sesión")
+    </button>
+</EditForm>
+
+@code {
+    private readonly LoginDTO login = new();
+    private string? errorMessage;
+    private bool sending;
+
+    private async Task LoginAsync()
+    {
+        if (sending)
+        {
+            return;
+        }
+
+        sending = true;
+        errorMessage = null;
+        try
+        {
+            var response = await Repository.PostAsync<LoginDTO, TokenDTO>("api/accounts/Login", login);
+            if (response.Error)
+            {
+                errorMessage = await response.GetErrorMessageAsync();
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(response.Response?.Token))
+            {
+                errorMessage = "No se pudo iniciar la sesión. Inténtalo nuevamente.";
+                return;
+            }
+
+            await LoginService.LoginAsync(response.Response.Token);
+            var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (state.User.Identity?.IsAuthenticated != true)
+            {
+                errorMessage = "La sesión recibida no es válida o ya venció. Inicia sesión nuevamente.";
+                return;
+            }
+
+            Navigation.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No fue posible conectar con el servidor. Comprueba que la API esté en ejecución.";
+        }
+        catch (TaskCanceledException)
+        {
+            errorMessage = "El servidor tardó demasiado en responder. Inténtalo nuevamente.";
+        }
+        finally
+        {
+            login.Password = string.Empty;
+            sending = false;
+        }
+    }
+}

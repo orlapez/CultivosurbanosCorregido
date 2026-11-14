@@ -1,0 +1,226 @@
+﻿@page "/seguimientos/crear"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
+@using Terpy.Shared.DTOs
+@using Terpy.Shared.Entities
+@using Terpy.WEB.Repositories
+
+@inject IRepository Repository
+@inject SweetAlertService Swal
+@inject NavigationManager Navigation
+
+<PageTitle>Nuevo seguimiento</PageTitle>
+
+<h3>Registrar seguimiento</h3>
+
+<p>
+    Registra las condiciones de temperatura, humedad y observaciones
+    de una siembra.
+</p>
+
+@if (cargando)
+{
+    <p>Cargando siembras...</p>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(mensajeError))
+    {
+        <div class="alert alert-danger">
+            @mensajeError
+        </div>
+    }
+
+    <EditForm Model="seguimiento" OnValidSubmit="GuardarSeguimiento">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Siembra</label>
+
+            <InputSelect class="form-select"
+                         @bind-Value="seguimiento.SiembraId">
+
+                <option value="0">Seleccione una siembra</option>
+
+                @foreach (var siembra in siembras)
+                {
+                    <option value="@siembra.Id">
+                        Siembra @siembra.Id
+                        - @siembra.FechaSiembra.ToString("dd/MM/yyyy")
+                    </option>
+                }
+            </InputSelect>
+
+            <ValidationMessage For="@(() => seguimiento.SiembraId)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Fecha y hora</label>
+
+            <InputDate class="form-control"
+                       Type="InputDateType.DateTimeLocal"
+                       @bind-Value="seguimiento.FechaHora" />
+
+            <ValidationMessage For="@(() => seguimiento.FechaHora)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Temperatura (°C)</label>
+
+            <InputNumber class="form-control"
+                         @bind-Value="seguimiento.TemperaturaC" />
+
+            <ValidationMessage For="@(() => seguimiento.TemperaturaC)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Humedad del suelo (%)</label>
+
+            <InputNumber class="form-control"
+                         @bind-Value="seguimiento.HumedadSueloPorcentaje" />
+
+            <ValidationMessage For="@(() => seguimiento.HumedadSueloPorcentaje)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Observación</label>
+
+            <InputTextArea class="form-control"
+                           rows="4"
+                           @bind-Value="seguimiento.Observacion" />
+
+            <ValidationMessage For="@(() => seguimiento.Observacion)" />
+        </div>
+
+        <div class="mt-4">
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled="@guardando">
+                @(guardando ? "Guardando..." : "Guardar seguimiento")
+            </button>
+
+            <button type="button"
+                    class="btn btn-secondary ms-2"
+                    @onclick="Cancelar">
+                Cancelar
+            </button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private CrearRegistroSeguimientoDto seguimiento = new()
+    {
+        FechaHora = DateTime.Now
+    };
+
+    private List<Siembra> siembras = new();
+
+    private bool cargando = true;
+    private bool guardando;
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSiembras();
+    }
+
+    private async Task CargarSiembras()
+    {
+        cargando = true;
+        mensajeError = null;
+
+        var respuesta = await Repository.GetAsync<List<Siembra>>(
+            "api/siembras");
+
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+            siembras = new List<Siembra>();
+        }
+        else
+        {
+            var todasLasSiembras = respuesta.Response ?? new List<Siembra>();
+
+            // Mostrar únicamente las siembras activas.
+            siembras = todasLasSiembras
+                .Where(s => s.Estado == EstadoSiembra.Activa)
+                .ToList();
+
+            if (!siembras.Any())
+            {
+                mensajeError = "No hay siembras activas disponibles para registrar seguimientos.";
+            }
+        }
+
+        cargando = false;
+    }
+
+    private async Task GuardarSeguimiento()
+    {
+        mensajeError = null;
+
+        if (seguimiento.SiembraId <= 0)
+        {
+            mensajeError = "Debes seleccionar una siembra.";
+            return;
+        }
+
+        // Confirmar que la siembra seleccionada sigue estando activa.
+        var siembraSeleccionada = siembras
+            .FirstOrDefault(s => s.Id == seguimiento.SiembraId);
+
+        if (siembraSeleccionada is null)
+        {
+            mensajeError = "La siembra seleccionada no está disponible.";
+            return;
+        }
+
+        guardando = true;
+
+        try
+        {
+            var dto = new CrearRegistroSeguimientoDto
+            {
+                SiembraId = seguimiento.SiembraId,
+                FechaHora = seguimiento.FechaHora.ToUniversalTime(),
+                TemperaturaC = seguimiento.TemperaturaC,
+                HumedadSueloPorcentaje = seguimiento.HumedadSueloPorcentaje,
+                Observacion = seguimiento.Observacion
+            };
+
+            var respuesta = await Repository.PostAsync<CrearRegistroSeguimientoDto>(
+                "api/seguimientos",
+                dto);
+
+            if (respuesta.Error)
+            {
+                mensajeError = await respuesta.GetErrorMessageAsync();
+                return;
+            }
+
+            await Swal.FireAsync(
+                "Seguimiento registrado",
+                "El seguimiento se guardó correctamente.",
+                SweetAlertIcon.Success);
+
+            Navigation.NavigateTo("/seguimientos");
+        }
+        catch
+        {
+            mensajeError = "Ocurrió un error al guardar el seguimiento. Inténtalo nuevamente.";
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/seguimientos");
+    }
+}

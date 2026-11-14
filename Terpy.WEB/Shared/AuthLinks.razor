@@ -1,0 +1,9 @@
+<AuthorizeView>
+    <Authorized>
+        <span>Hola, @context.User.Identity?.Name</span>
+        <NavLink href="logout">Cerrar sesión</NavLink>
+    </Authorized>
+    <NotAuthorized>
+        <NavLink href="login">Iniciar sesión</NavLink>
+    </NotAuthorized>
+</AuthorizeView>

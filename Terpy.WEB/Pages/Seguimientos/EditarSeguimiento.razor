@@ -1,0 +1,193 @@
+﻿@page "/seguimientos/editar/{Id:int}"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Terpy.Shared.Entities
+@using Terpy.Shared.DTOs
+@using Terpy.WEB.Repositories
+
+@inject IRepository Repository
+@inject SweetAlertService Swal
+@inject NavigationManager Navigation
+
+<PageTitle>Editar seguimiento</PageTitle>
+
+<h3>Editar seguimiento</h3>
+
+<p>
+    Modifica las condiciones de temperatura, humedad y observaciones
+    de una siembra.
+</p>
+
+@if (cargando)
+{
+    <p>Consultando seguimiento...</p>
+}
+else if (seguimiento is null || modelo is null)
+{
+    <div class="alert alert-danger">
+        @mensajeError
+    </div>
+
+    <a class="btn btn-secondary" href="/seguimientos">
+        Volver
+    </a>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(mensajeError))
+    {
+        <div class="alert alert-danger">
+            @mensajeError
+        </div>
+    }
+
+    <EditForm Model="modelo" OnValidSubmit="GuardarCambios">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Siembra asociada</label>
+
+            <input class="form-control"
+                   value="@seguimiento.SiembraId"
+                   disabled />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Fecha y hora</label>
+
+            <InputDate class="form-control"
+                       Type="InputDateType.DateTimeLocal"
+                       @bind-Value="modelo.FechaHora" />
+
+            <ValidationMessage For="@(() => modelo.FechaHora)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Temperatura (°C)</label>
+
+            <InputNumber class="form-control"
+                         @bind-Value="modelo.TemperaturaC" />
+
+            <ValidationMessage For="@(() => modelo.TemperaturaC)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Humedad del suelo (%)</label>
+
+            <InputNumber class="form-control"
+                         @bind-Value="modelo.HumedadSueloPorcentaje" />
+
+            <ValidationMessage For="@(() => modelo.HumedadSueloPorcentaje)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Observación</label>
+
+            <InputTextArea class="form-control"
+                           rows="4"
+                           @bind-Value="modelo.Observacion" />
+
+            <ValidationMessage For="@(() => modelo.Observacion)" />
+        </div>
+
+        <div class="mb-3">
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled="@guardando">
+                @(guardando ? "Guardando..." : "Guardar cambios")
+            </button>
+
+            <a class="btn btn-secondary ms-2"
+               href="/seguimientos">
+                Cancelar
+            </a>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private RegistroSeguimiento? seguimiento;
+
+    private ActualizarRegistroSeguimientoDto? modelo;
+
+    private bool cargando = true;
+    private bool guardando = false;
+
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSeguimiento();
+    }
+
+    private async Task CargarSeguimiento()
+    {
+        cargando = true;
+        mensajeError = null;
+
+        var respuesta = await Repository.GetAsync<RegistroSeguimiento>(
+            $"/api/seguimientos/{Id}");
+
+        if (respuesta.Error || respuesta.Response is null)
+        {
+            mensajeError = "No fue posible cargar el seguimiento solicitado.";
+            cargando = false;
+            return;
+        }
+
+        seguimiento = respuesta.Response;
+
+        modelo = new ActualizarRegistroSeguimientoDto
+        {
+            FechaHora = seguimiento.FechaHora.ToLocalTime(),
+            TemperaturaC = seguimiento.TemperaturaC,
+            HumedadSueloPorcentaje = seguimiento.HumedadSueloPorcentaje,
+            Observacion = seguimiento.Observacion
+        };
+
+        cargando = false;
+    }
+
+    private async Task GuardarCambios()
+    {
+        if (seguimiento is null || modelo is null)
+        {
+            return;
+        }
+
+        guardando = true;
+        mensajeError = null;
+
+        var dto = new ActualizarRegistroSeguimientoDto
+        {
+            FechaHora = modelo.FechaHora.ToUniversalTime(),
+            TemperaturaC = modelo.TemperaturaC,
+            HumedadSueloPorcentaje = modelo.HumedadSueloPorcentaje,
+            Observacion = modelo.Observacion
+        };
+
+        var respuesta = await Repository.PutAsync<ActualizarRegistroSeguimientoDto>(
+            $"/api/seguimientos/{Id}",
+            dto);
+
+        guardando = false;
+
+        if (respuesta.Error)
+        {
+            mensajeError = "No fue posible actualizar el seguimiento. Revisa los datos e inténtalo nuevamente.";
+            return;
+        }
+
+        await Swal.FireAsync(
+            "¡Actualizado!",
+            "El seguimiento se actualizó correctamente.",
+            SweetAlertIcon.Success);
+
+        Navigation.NavigateTo("/seguimientos");
+    }
+}

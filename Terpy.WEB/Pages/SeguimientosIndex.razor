@@ -1,0 +1,183 @@
+﻿@page "/seguimientos"
+@attribute [Authorize]
+
+@using Terpy.Shared.Entities
+@using Terpy.WEB.Repositories
+
+@inject IRepository Repository
+@inject SweetAlertService Swal
+
+<PageTitle>Seguimientos</PageTitle>
+
+<h3>Seguimientos de cultivos</h3>
+
+<p>
+    Consulta los registros de temperatura, humedad y observaciones
+    realizados durante el crecimiento de los cultivos.
+</p>
+
+<div class="mb-3">
+    <a class="btn btn-primary" href="/seguimientos/crear">
+        Nuevo seguimiento
+    </a>
+</div>
+
+<GenericList Titem="RegistroSeguimiento" MyList="seguimientos">
+
+    <Loading>
+        <p>Consultando seguimientos...</p>
+    </Loading>
+
+    <NoRecords>
+        <div class="alert alert-info">
+            No hay seguimientos registrados.
+        </div>
+    </NoRecords>
+
+    <Body>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+
+                <thead>
+                    <tr>
+                        <th>Siembra</th>
+                        <th>Fecha y hora</th>
+                        <th>Temperatura</th>
+                        <th>Humedad</th>
+                        <th>Observación</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var seguimiento in seguimientos!)
+                    {
+                        <tr>
+                            <td>
+                                @seguimiento.SiembraId
+                            </td>
+
+                            <td>
+                                @(seguimiento.FechaHora
+                                    .ToLocalTime()
+                                    .ToString("dd/MM/yyyy HH:mm"))
+                            </td>
+
+                            <td>
+                                @if (seguimiento.TemperaturaC.HasValue)
+                                {
+                                    @($"{seguimiento.TemperaturaC.Value} °C")
+                                }
+                                else
+                                {
+                                    <span>Sin dato</span>
+                                }
+                            </td>
+
+                            <td>
+                                @if (seguimiento.HumedadSueloPorcentaje.HasValue)
+                                {
+                                    @($"{seguimiento.HumedadSueloPorcentaje.Value} %")
+                                }
+                                else
+                                {
+                                    <span>Sin dato</span>
+                                }
+                            </td>
+
+                            <td>
+                                @(seguimiento.Observacion ?? "Sin observación")
+                            </td>
+
+                            <td>
+                                <a class="btn btn-sm btn-warning me-1"
+                                   href="@($"/seguimientos/editar/{seguimiento.Id}")">
+                                    Editar
+                                </a>
+
+                                <button class="btn btn-sm btn-danger"
+                                        @onclick="() => EliminarSeguimiento(seguimiento.Id)">
+                                    Eliminar
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+
+            </table>
+        </div>
+    </Body>
+
+</GenericList>
+
+@if (!string.IsNullOrWhiteSpace(mensajeError))
+{
+    <div class="alert alert-danger mt-3">
+        @mensajeError
+    </div>
+}
+
+@code {
+    private List<RegistroSeguimiento>? seguimientos;
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSeguimientos();
+    }
+
+    private async Task CargarSeguimientos()
+    {
+        var respuesta = await Repository.GetAsync<List<RegistroSeguimiento>>(
+            "api/seguimientos");
+
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+            seguimientos = null;
+            return;
+        }
+
+        mensajeError = null;
+
+        seguimientos = respuesta.Response
+            ?? new List<RegistroSeguimiento>();
+    }
+
+    private async Task EliminarSeguimiento(int id)
+    {
+        var resultado = await Swal.FireAsync(new SweetAlertOptions
+        {
+            Title = "¿Eliminar seguimiento?",
+            Text = "Esta acción no se puede deshacer.",
+            Icon = SweetAlertIcon.Warning,
+            ShowCancelButton = true,
+            ConfirmButtonText = "Sí, eliminar",
+            CancelButtonText = "Cancelar",
+            ReverseButtons = true
+        });
+
+        if (resultado.IsConfirmed)
+        {
+            var respuesta = await Repository.DeleteAsync(
+                $"api/seguimientos/{id}");
+
+            if (respuesta.Error)
+            {
+                mensajeError = await respuesta.GetErrorMessageAsync();
+                return;
+            }
+
+            mensajeError = null;
+
+            await CargarSeguimientos();
+
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Title = "Eliminado",
+                Text = "El seguimiento se eliminó correctamente.",
+                Icon = SweetAlertIcon.Success
+            });
+        }
+    }
+}

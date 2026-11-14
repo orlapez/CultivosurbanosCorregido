@@ -1,0 +1,109 @@
+@page "/cuidados/editar/{id:int}"
+@attribute [Authorize]
+@inject IRepository repository
+@inject SweetAlertService swal
+@inject NavigationManager navigationManager
+
+<PageTitle>Editar Cuidado</PageTitle>
+
+<h3>Editar Cuidado</h3>
+
+@if (cuidado == null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <EditForm Model="cuidadoEdicion" OnValidSubmit="EditarCuidado">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Siembra asociada:</label>
+            <input class="form-control"
+                   value="@cuidado.SiembraId"
+                   readonly />
+        </div>
+
+        <div class="mb-3">
+            <label>Fecha y Hora:</label>
+            <InputDate Type="InputDateType.DateTimeLocal" class="form-control" @bind-Value="fechaLocal" />
+        </div>
+
+        <div class="mb-3">
+            <label>Tipo de Actividad:</label>
+            <InputSelect class="form-select" @bind-Value="cuidadoEdicion.TipoActividad">
+                <option value="">-- Seleccione un tipo --</option>
+                <option value="Riego">Riego</option>
+                <option value="Abonado">Abonado</option>
+                <option value="Poda">Poda</option>
+                <option value="ControlPlagas">Control Plagas</option>
+                <option value="Otra">Otra</option>
+            </InputSelect>
+            <ValidationMessage For="@(() => cuidadoEdicion.TipoActividad)" />
+        </div>
+
+        <div class="mb-3">
+            <label>Descripción:</label>
+            <InputText class="form-control" @bind-Value="cuidadoEdicion.Descripcion" />
+            <ValidationMessage For="@(() => cuidadoEdicion.Descripcion)" />
+        </div>
+
+        <button class="btn btn-primary" type="submit">Guardar Cambios</button>
+        <button class="btn btn-secondary" @onclick="Regresar" type="button">Cancelar</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private ActividadCuidado? cuidado;
+    private ActualizarActividadCuidadoDto cuidadoEdicion = new();
+    private DateTime fechaLocal = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var responseHttp = await repository.GetAsync<ActividadCuidado>($"api/cuidados/{Id}");
+        if (responseHttp.Error || responseHttp.Response is null)
+        {
+            await swal.FireAsync(
+                "Error",
+                "No se pudo cargar el cuidado.",
+                SweetAlertIcon.Error);
+            navigationManager.NavigateTo("/cuidados");
+            return;
+        }
+
+        cuidado = responseHttp.Response;
+        if (cuidado != null)
+        {
+            cuidadoEdicion = new ActualizarActividadCuidadoDto
+            {
+                TipoActividad = cuidado.TipoActividad,
+                Descripcion = cuidado.Descripcion
+            };
+            fechaLocal = cuidado.FechaHora.ToLocalTime();
+        }
+    }
+
+    private async Task EditarCuidado()
+    {
+        cuidadoEdicion.FechaHora = fechaLocal.ToUniversalTime();
+
+        var responseHttp = await repository.PutAsync($"api/cuidados/{Id}", cuidadoEdicion);
+        if (responseHttp.Error)
+        {
+            var mensaje = await responseHttp.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+
+        navigationManager.NavigateTo("/cuidados");
+    }
+
+    private void Regresar()
+    {
+        navigationManager.NavigateTo("/cuidados");
+    }
+}

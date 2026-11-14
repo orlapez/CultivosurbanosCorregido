@@ -1,0 +1,160 @@
+﻿@page "/cosechas"
+@attribute [Authorize]
+
+@using Terpy.Shared.Entities
+@using CurrieTechnologies.Razor.SweetAlert2
+
+@inject IRepository Repository
+@inject NavigationManager NavigationManager
+@inject SweetAlertService Swal
+
+<PageTitle>Cosechas</PageTitle>
+
+<h3>Gestión de cosechas</h3>
+
+<div class="mb-3">
+    <button class="btn btn-primary"
+            @onclick="CrearCosecha">
+        <i class="bi bi-plus-circle"></i>
+        Nueva cosecha
+    </button>
+</div>
+
+<GenericList MyList="cargando ? null : cosechas">
+
+    <Loading>
+        <p>Consultando cosechas...</p>
+    </Loading>
+
+    <NoRecords>
+        <p>No hay cosechas registradas.</p>
+    </NoRecords>
+
+    <Body>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Siembra</th>
+                        <th>Fecha y hora</th>
+                        <th>Cantidad (kg)</th>
+                        <th>Observación</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var cosecha in cosechas)
+                    {
+                        <tr>
+                            <td>@cosecha.Id</td>
+                            <td>@cosecha.SiembraId</td>
+                            <td>
+                                @cosecha.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                            </td>
+                            <td>@cosecha.CantidadKg</td>
+                            <td>@cosecha.Observacion</td>
+
+                            <td>
+                                <button class="btn btn-warning btn-sm me-1"
+                                        @onclick="() => EditarCosecha(cosecha.Id)">
+                                    Editar
+                                </button>
+
+                                <button class="btn btn-danger btn-sm"
+                                        @onclick="() => EliminarCosecha(cosecha.Id)">
+                                    Eliminar
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Body>
+
+</GenericList>
+
+@code {
+    private List<Cosecha> cosechas = new();
+    private bool cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCosechas();
+    }
+
+    private async Task CargarCosechas()
+    {
+        cargando = true;
+
+        var respuesta = await Repository.GetAsync<List<Cosecha>>(
+            "api/cosechas");
+
+        if (respuesta.Error)
+        {
+            await Swal.FireAsync(
+                "Error",
+                "No fue posible consultar las cosechas.",
+                SweetAlertIcon.Error);
+
+            cosechas = new();
+            cargando = false;
+            return;
+        }
+
+        cosechas = respuesta.Response ?? new List<Cosecha>();
+
+        cargando = false;
+    }
+
+    private void CrearCosecha()
+    {
+        NavigationManager.NavigateTo("/cosechas/crear");
+    }
+
+    private void EditarCosecha(int id)
+    {
+        NavigationManager.NavigateTo($"/cosechas/editar/{id}");
+    }
+
+    private async Task EliminarCosecha(int id)
+    {
+        var confirmacion = await Swal.FireAsync(
+            new SweetAlertOptions
+            {
+                Title = "¿Eliminar cosecha?",
+                Text = "Esta acción no se puede deshacer.",
+                Icon = SweetAlertIcon.Warning,
+                ShowCancelButton = true,
+                ConfirmButtonText = "Sí, eliminar",
+                CancelButtonText = "Cancelar"
+            });
+
+        if (!confirmacion.IsConfirmed)
+        {
+            return;
+        }
+
+        var respuesta = await Repository.DeleteAsync(
+            $"api/cosechas/{id}");
+
+        if (respuesta.Error)
+        {
+            await Swal.FireAsync(
+                "Error",
+                "No fue posible eliminar la cosecha. Puede que sea el último registro de una siembra cosechada.",
+                SweetAlertIcon.Error);
+
+            return;
+        }
+
+        await Swal.FireAsync(
+            "Eliminada",
+            "La cosecha fue eliminada correctamente.",
+            SweetAlertIcon.Success);
+
+        await CargarCosechas();
+    }
+}

@@ -1,0 +1,131 @@
+﻿@page "/cultivos"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@inject IRepository repository
+@inject SweetAlertService swal
+
+<PageTitle>Cultivos</PageTitle>
+
+<div class="card">
+    <div class="card-header">
+        <span>
+            <i class="bi bi-flower1"></i> Cultivos
+        </span>
+        <AuthorizeView Roles="Administrador">
+            <Authorized Context="authContext">
+                <a class="btn btn-primary float-end" href="/cultivos/crear">
+                    <i class="bi bi-plus-circle"></i> Nuevo Cultivo
+                </a>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+    <div class="card-body">
+        @if (errorCarga)
+        {
+            <div class="alert alert-danger" role="alert">No se pudo cargar el listado. Intenta nuevamente.</div>
+            <button class="btn btn-secondary" type="button" @onclick="CargarDatos">Reintentar</button>
+        }
+        else
+        {
+            <GenericList MyList="cultivos">
+                <Body>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Descripción</th>
+                                <AuthorizeView Roles="Administrador">
+                                    <Authorized Context="authContext">
+                                        <th style="width: 200px;">Acciones</th>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cultivo in cultivos!)
+                            {
+                                <tr>
+                                    <td>@cultivo.Nombre</td>
+                                    <td>@cultivo.Descripcion</td>
+                                    <AuthorizeView Roles="Administrador">
+                                        <Authorized Context="authContext">
+                                            <td>
+                                                <a href="/cultivos/editar/@cultivo.Id" class="btn btn-warning btn-sm">
+                                                    <i class="bi bi-pencil"></i> Editar
+                                                </a>
+                                                <button class="btn btn-danger btn-sm ms-2" @onclick="() => Borrar(cultivo.Id)">
+                                                    <i class="bi bi-trash"></i> Borrar
+                                                </button>
+                                            </td>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </Body>
+            </GenericList>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Cultivo>? cultivos;
+    private bool errorCarga;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDatos();
+    }
+
+    private async Task CargarDatos()
+    {
+        errorCarga = false;
+        var responseHttp = await repository.GetAsync<List<Cultivo>>("api/cultivos");
+        if (responseHttp.Error)
+        {
+            errorCarga = true;
+            var message = await responseHttp.GetErrorMessageAsync();
+            await swal.FireAsync("Error", message, SweetAlertIcon.Error);
+            return;
+        }
+        cultivos = responseHttp.Response;
+    }
+
+    private async Task Borrar(int id)
+    {
+        var confirmacion = await swal.FireAsync(new SweetAlertOptions
+        {
+            Title = "Confirmación",
+            Text = "¿Deseas eliminar este cultivo?",
+            Icon = SweetAlertIcon.Warning,
+            ShowCancelButton = true,
+            ConfirmButtonText = "Sí, eliminar",
+            CancelButtonText = "Cancelar"
+        });
+
+        if (!confirmacion.IsConfirmed)
+        {
+            return;
+        }
+
+        var responseHttp = await repository.DeleteAsync($"api/cultivos/{id}");
+
+        if (responseHttp.Error)
+        {
+            if (responseHttp.HttpResponseMessage.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                await swal.FireAsync("Error", "No se puede eliminar el cultivo porque tiene siembras asociadas.", SweetAlertIcon.Error);
+            }
+            else
+            {
+                var mensajeError = await responseHttp.GetErrorMessageAsync();
+                await swal.FireAsync("Error", mensajeError, SweetAlertIcon.Error);
+            }
+            return;
+        }
+
+        await CargarDatos();
+        await swal.FireAsync("Éxito", "Cultivo eliminado correctamente.", SweetAlertIcon.Success);
+    }
+}

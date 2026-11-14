@@ -1,0 +1,52 @@
+﻿@page "/huertas/crear"
+@attribute [Authorize]
+@inject IRepository Repository
+@inject NavigationManager Navigation
+
+<h3>Nueva huerta</h3>
+
+@if (mensajeError is not null)
+{
+    <div class="alert alert-danger">@mensajeError</div>
+}
+
+<EditForm Model="dto" OnValidSubmit="CrearAsync">
+    <DataAnnotationsValidator />
+
+    <div class="mb-3">
+        <label class="form-label">Nombre</label>
+        <InputText class="form-control" @bind-Value="dto.Nombre" />
+        <ValidationMessage For="() => dto.Nombre" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Ubicación</label>
+        <InputText class="form-control" @bind-Value="dto.Ubicacion" />
+        <ValidationMessage For="() => dto.Ubicacion" />
+    </div>
+
+    <button class="btn btn-primary" type="submit" disabled="@guardando">Guardar</button>
+    <a class="btn btn-secondary" href="/huertas">Cancelar</a>
+</EditForm>
+
+@code {
+    private CrearHuertaDto dto = new();
+    private string? mensajeError;
+    private bool guardando;
+
+    private async Task CrearAsync()
+    {
+        guardando = true;
+        mensajeError = null;
+
+        var respuesta = await Repository.PostAsync("api/huertas", dto);
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+            guardando = false;
+            return;
+        }
+
+        Navigation.NavigateTo("/huertas");
+    }
+}

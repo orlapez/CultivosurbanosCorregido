@@ -1,0 +1,201 @@
+﻿@page "/cosechas/crear"
+@attribute [Authorize]
+
+@using System.ComponentModel.DataAnnotations
+@using Terpy.Shared.DTOs
+@using Terpy.Shared.Entities
+@using Terpy.WEB.Repositories
+@using Terpy.Shared.Enums
+
+@inject IRepository Repository
+@inject SweetAlertService Swal
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva cosecha</PageTitle>
+
+<h3>Registrar cosecha</h3>
+
+<p>
+    Registra la cantidad recolectada de una siembra,
+    indicando la fecha, los kilogramos y una observación.
+</p>
+
+@if (cargando)
+{
+    <p>Cargando siembras...</p>
+}
+else
+{
+    <EditForm Model="cosecha" OnValidSubmit="GuardarCosecha">
+        <DataAnnotationsValidator />
+
+        <div class="mb-3">
+            <label class="form-label">Siembra</label>
+
+            <InputSelect class="form-select"
+                         @bind-Value="cosecha.SiembraId">
+
+                <option value="0">Seleccione una siembra</option>
+
+                @foreach (var siembra in siembras)
+                {
+                    <option value="@siembra.Id">
+                        Siembra @siembra.Id
+                        - @siembra.FechaSiembra.ToString("dd/MM/yyyy")
+                        - @siembra.Estado
+                    </option>
+                }
+            </InputSelect>
+
+            <ValidationMessage For="@(() => cosecha.SiembraId)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Fecha y hora</label>
+
+            <InputDate class="form-control"
+                       Type="InputDateType.DateTimeLocal"
+                       @bind-Value="cosecha.FechaHora" />
+
+            <ValidationMessage For="@(() => cosecha.FechaHora)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Cantidad recolectada (kg)</label>
+
+            <InputNumber class="form-control"
+                         @bind-Value="cosecha.CantidadKg" />
+
+            <ValidationMessage For="@(() => cosecha.CantidadKg)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Observación</label>
+
+            <InputTextArea class="form-control"
+                           rows="4"
+                           @bind-Value="cosecha.Observacion" />
+
+            <ValidationMessage For="@(() => cosecha.Observacion)" />
+        </div>
+
+        <div class="mt-4">
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled="@guardando">
+
+                @(guardando ? "Guardando..." : "Guardar cosecha")
+            </button>
+
+            <button type="button"
+                    class="btn btn-secondary ms-2"
+                    @onclick="Cancelar">
+                Cancelar
+            </button>
+        </div>
+    </EditForm>
+}
+
+@if (!string.IsNullOrWhiteSpace(mensajeError))
+{
+    <div class="alert alert-danger mt-3">
+        @mensajeError
+    </div>
+}
+
+@code {
+    private CrearCosechaDto cosecha = new()
+    {
+        FechaHora = DateTime.Now
+    };
+
+    private List<Siembra> siembras = new();
+
+    private bool cargando = true;
+    private bool guardando;
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSiembras();
+    }
+
+    private async Task CargarSiembras()
+    {
+        var respuesta = await Repository.GetAsync<List<Siembra>>(
+            "api/siembras");
+
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+            siembras = new List<Siembra>();
+        }
+        else
+        {
+            siembras = respuesta.Response?
+                .Where(s => s.Estado == EstadoSiembra.Activa)
+                .ToList()
+                ?? new List<Siembra>();
+        }
+
+        cargando = false;
+    }
+
+    private async Task GuardarCosecha()
+    {
+        mensajeError = null;
+
+        if (cosecha.SiembraId <= 0)
+        {
+            mensajeError = "Debes seleccionar una siembra.";
+            return;
+        }
+
+        if (!siembras.Any(s => s.Id == cosecha.SiembraId))
+        {
+            mensajeError = "Debes seleccionar una siembra activa.";
+            return;
+        }
+
+        guardando = true;
+
+        // Convertir la fecha y hora local a UTC.
+        var fechaUtc = cosecha.FechaHora.ToUniversalTime();
+
+        // Crear el DTO que se enviará a la API.
+        var dto = new CrearCosechaDto
+        {
+            SiembraId = cosecha.SiembraId,
+            FechaHora = fechaUtc,
+            CantidadKg = cosecha.CantidadKg,
+            Observacion = cosecha.Observacion
+        };
+
+        // Enviar el DTO con la fecha en UTC.
+        var respuesta = await Repository.PostAsync<CrearCosechaDto>(
+            "api/cosechas",
+            dto);
+
+        guardando = false;
+
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+            return;
+        }
+
+        await Swal.FireAsync(new SweetAlertOptions
+        {
+            Title = "Cosecha registrada",
+            Text = "La cosecha se guardó correctamente.",
+            Icon = SweetAlertIcon.Success
+        });
+
+        Navigation.NavigateTo("/cosechas");
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/cosechas");
+    }
+}

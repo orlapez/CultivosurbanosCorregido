@@ -1,0 +1,99 @@
+﻿@page "/huertas"
+@attribute [Authorize]
+@inject IRepository Repository
+@inject SweetAlertService SweetAlert
+
+<h3>Huertas</h3>
+
+<a class="btn btn-primary mb-3" href="/huertas/crear">Nueva huerta</a>
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (mensajeError is not null)
+{
+    <div class="alert alert-danger">
+        @mensajeError
+        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="CargarAsync">Reintentar</button>
+    </div>
+}
+else if (huertas is null || huertas.Count == 0)
+{
+    <p>No hay huertas registradas.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Ubicación</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var huerta in huertas)
+            {
+                <tr>
+                    <td>@huerta.Nombre</td>
+                    <td>@huerta.Ubicacion</td>
+                    <td>
+                        <a class="btn btn-sm btn-warning" href="/huertas/editar/@huerta.Id">Editar</a>
+                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarAsync(huerta)">Eliminar</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Huerta>? huertas;
+    private bool cargando = true;
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        cargando = true;
+        mensajeError = null;
+
+        var respuesta = await Repository.GetAsync<List<Huerta>>("api/huertas");
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+        }
+        else
+        {
+            huertas = respuesta.Response;
+        }
+
+        cargando = false;
+    }
+
+    private async Task EliminarAsync(Huerta huerta)
+    {
+        var confirmacion = await SweetAlert.FireAsync(new SweetAlertOptions
+        {
+            Title = "Confirmación",
+            Text = $"¿Eliminar la huerta \"{huerta.Nombre}\"?",
+            Icon = SweetAlertIcon.Question,
+            ShowCancelButton = true,
+            ConfirmButtonText = "Sí, eliminar",
+            CancelButtonText = "Cancelar"
+        });
+        if (!confirmacion.IsConfirmed) return;
+
+        var respuesta = await Repository.DeleteAsync($"api/huertas/{huerta.Id}");
+        if (respuesta.Error)
+        {
+            var mensaje = await respuesta.GetErrorMessageAsync();
+            await SweetAlert.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;//409,si huerta tiene zonas
+        }
+
+        await CargarAsync();
+    }
+}

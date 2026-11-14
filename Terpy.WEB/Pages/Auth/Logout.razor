@@ -1,0 +1,15 @@
+@page "/logout"
+@inject ILoginService LoginService
+@inject NavigationManager Navigation
+@using Terpy.WEB.Auth
+
+<PageTitle>Cerrar sesión - Terpy</PageTitle>
+<h1>Cerrando sesión...</h1>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await LoginService.LogoutAsync();
+        Navigation.NavigateTo("/");
+    }
+}

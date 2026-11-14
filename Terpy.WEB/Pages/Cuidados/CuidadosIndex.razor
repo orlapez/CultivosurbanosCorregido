@@ -1,0 +1,104 @@
+@page "/cuidados"
+@attribute [Authorize]
+@inject IRepository repository
+@inject SweetAlertService swal
+@inject NavigationManager navigationManager
+
+<PageTitle>Cuidados</PageTitle>
+
+<h3>Listado de Cuidados</h3>
+
+<div class="mb-3">
+    <a class="btn btn-primary" href="/cuidados/crear"><i class="bi bi-plus-circle"></i> Nuevo Cuidado</a>
+</div>
+
+@if (errorCarga)
+{
+    <div class="alert alert-danger" role="alert">No se pudo cargar el listado. Intenta nuevamente.</div>
+    <button class="btn btn-secondary" type="button" @onclick="CargarCuidados">Reintentar</button>
+}
+else
+{
+    <GenericList MyList="cuidados">
+        <Body>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Tipo</th>
+                        <th>Siembra</th>
+                        <th>Descripción</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cuidado in cuidados!)
+                    {
+                        <tr>
+                            <td>@cuidado.FechaHora.ToLocalTime().ToString("g")</td>
+                            <td>@cuidado.TipoActividad</td>
+                            <td>@cuidado.SiembraId</td>
+                            <td>@cuidado.Descripcion</td>
+                            <td>
+                                <a class="btn btn-warning btn-sm" href="/cuidados/editar/@cuidado.Id">Editar</a>
+                                <button class="btn btn-danger btn-sm" @onclick="() => Borrar(cuidado.Id)">Borrar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </Body>
+    </GenericList>
+}
+
+@code {
+    private List<ActividadCuidado>? cuidados;
+    private bool errorCarga;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCuidados();
+    }
+
+    private async Task CargarCuidados()
+    {
+        errorCarga = false;
+        var responseHttp = await repository.GetAsync<List<ActividadCuidado>>("api/cuidados");
+        if (responseHttp.Error)
+        {
+            errorCarga = true;
+            var mensaje = await responseHttp.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+        cuidados = responseHttp.Response;
+    }
+
+    private async Task Borrar(int id)
+    {
+        var confirmacion = await swal.FireAsync(new SweetAlertOptions
+        {
+            Title = "Confirmación",
+            Text = "¿Deseas eliminar este registro de cuidado?",
+            Icon = SweetAlertIcon.Warning,
+            ShowCancelButton = true,
+            ConfirmButtonText = "Sí, eliminar",
+            CancelButtonText = "Cancelar"
+        });
+
+        if (!confirmacion.IsConfirmed)
+        {
+            return;
+        }
+
+        var responseHttp = await repository.DeleteAsync($"api/cuidados/{id}");
+        if (responseHttp.Error)
+        {
+            var mensaje = await responseHttp.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+
+        await CargarCuidados();
+    }
+}

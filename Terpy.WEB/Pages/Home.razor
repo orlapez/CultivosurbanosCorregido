@@ -1,0 +1,16 @@
+@page "/"
+
+<PageTitle>Terpy</PageTitle>
+
+<h1>Terpy</h1>
+<p>Sistema de monitoreo de cultivos urbanos del Equipo Dinamita.</p>
+
+<AuthorizeView>
+    <Authorized>
+        <p>Sesión iniciada como @context.User.Identity?.Name.</p>
+        <p>Rol: @(context.User.IsInRole("Administrador") ? "Administrador" : "Usuario").</p>
+    </Authorized>
+    <NotAuthorized>
+        <p><a href="login">Inicia sesión</a> para acceder al sistema.</p>
+    </NotAuthorized>
+</AuthorizeView>

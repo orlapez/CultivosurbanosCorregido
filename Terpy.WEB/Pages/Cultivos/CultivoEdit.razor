@@ -1,0 +1,92 @@
+﻿@page "/cultivos/editar/{id:int}"
+@attribute [Authorize(Roles = "Administrador")]
+@using Microsoft.AspNetCore.Authorization
+@inject IRepository repository
+@inject NavigationManager navigationManager
+@inject SweetAlertService swal
+
+<AuthorizeView Roles="Administrador">
+    <Authorized Context="authContext">
+        <h3>Editar Cultivo</h3>
+
+        @if (cultivo is null)
+        {
+            <p>Cargando...</p>
+        }
+        else
+        {
+            <EditForm Model="cultivo" OnValidSubmit="EditarAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label>Nombre:</label>
+                    <InputText class="form-control" @bind-Value="cultivo.Nombre" />
+                    <ValidationMessage For="@(() => cultivo.Nombre)" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Descripción:</label>
+                    <InputTextArea class="form-control" @bind-Value="cultivo.Descripcion" />
+                    <ValidationMessage For="@(() => cultivo.Descripcion)" />
+                </div>
+
+                <button class="btn btn-primary" type="submit"><i class="bi bi-check-circle"></i> Guardar Cambios</button>
+                <button class="btn btn-secondary" type="button" @onclick="Return"><i class="bi bi-arrow-left"></i> Regresar</button>
+            </EditForm>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>No tienes permisos para acceder a esta página.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private ActualizarCultivoDto? cultivo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var responseHttp = await repository.GetAsync<Cultivo>($"api/cultivos/{Id}");
+        if (responseHttp.Error)
+        {
+            if (responseHttp.HttpResponseMessage.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                navigationManager.NavigateTo("/cultivos");
+                return;
+            }
+
+            var message = await responseHttp.GetErrorMessageAsync();
+            await swal.FireAsync("Error", message, SweetAlertIcon.Error);
+            navigationManager.NavigateTo("/cultivos");
+            return;
+        }
+
+        var entity = responseHttp.Response;
+        cultivo = new ActualizarCultivoDto()
+        {
+            Nombre = entity!.Nombre,
+            Descripcion = entity.Descripcion
+        };
+    }
+
+    private async Task EditarAsync()
+    {
+        var responseHttp = await repository.PutAsync($"api/cultivos/{Id}", cultivo);
+        if (responseHttp.Error)
+        {
+            var message = await responseHttp.GetErrorMessageAsync();
+            await swal.FireAsync("Error", message, SweetAlertIcon.Error);
+            return;
+        }
+
+        navigationManager.NavigateTo("/cultivos");
+    }
+
+    private void Return()
+    {
+        navigationManager.NavigateTo("/cultivos");
+    }
+}

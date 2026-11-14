@@ -1,0 +1,107 @@
+﻿@page "/zonas"
+@attribute [Authorize]
+@inject IRepository Repository
+@inject SweetAlertService SweetAlert
+
+<h3>Zonas</h3>
+
+<a class="btn btn-primary mb-3" href="/zonas/crear">Nueva zona</a>
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (mensajeError is not null)
+{
+    <div class="alert alert-danger">
+        @mensajeError
+        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="CargarAsync">Reintentar</button>
+    </div>
+}
+else if (zonas is null || zonas.Count == 0)
+{
+    <p>No hay zonas registradas.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr><th>Nombre</th><th>Descripción</th><th>Huerta</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var zona in zonas)
+            {
+                <tr>
+                    <td>@zona.Nombre</td>
+                    <td>@zona.Descripcion</td>
+                    <td>@NombreHuerta(zona.HuertaId)</td>
+                    <td>
+                        <a class="btn btn-sm btn-warning" href="/zonas/editar/@zona.Id">Editar</a>
+                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarAsync(zona)">Eliminar</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Zona>? zonas;
+    private Dictionary<int, string> nombresHuertas = new();
+    private bool cargando = true;
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private string NombreHuerta(int huertaId) =>
+        nombresHuertas.TryGetValue(huertaId, out var nombre) ? nombre : $"Huerta {huertaId}";
+
+    private async Task CargarAsync()
+    {
+        cargando = true;
+        mensajeError = null;
+
+        var respZonas = await Repository.GetAsync<List<Zona>>("api/zonas");
+        if (respZonas.Error)
+        {
+            mensajeError = await respZonas.GetErrorMessageAsync();
+            cargando = false;
+            return;
+        }
+
+        var respHuertas = await Repository.GetAsync<List<Huerta>>("api/huertas");
+        if (respHuertas.Error)
+        {
+            mensajeError = await respHuertas.GetErrorMessageAsync();
+            cargando = false;
+            return;
+        }
+
+        zonas = respZonas.Response;
+        nombresHuertas = (respHuertas.Response ?? new()).ToDictionary(h => h.Id, h => h.Nombre);
+        cargando = false;
+    }
+
+    private async Task EliminarAsync(Zona zona)
+    {
+        var confirmacion = await SweetAlert.FireAsync(new SweetAlertOptions
+        {
+            Title = "Confirmación",
+            Text = $"¿Eliminar la zona \"{zona.Nombre}\"?",
+            Icon = SweetAlertIcon.Question,
+            ShowCancelButton = true,
+            ConfirmButtonText = "Sí, eliminar",
+            CancelButtonText = "Cancelar"
+        });
+        if (!confirmacion.IsConfirmed) return;
+
+        var respuesta = await Repository.DeleteAsync($"api/zonas/{zona.Id}");
+        if (respuesta.Error)
+        {
+            var mensaje = await respuesta.GetErrorMessageAsync();   // 409 si tiene siembras
+            await SweetAlert.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+        await CargarAsync();
+    }
+}

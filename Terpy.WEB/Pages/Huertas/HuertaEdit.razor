@@ -1,0 +1,87 @@
+﻿@page "/huertas/editar/{Id:int}"
+@attribute [Authorize]
+@inject IRepository Repository
+@inject NavigationManager Navigation
+
+<h3>Editar huerta</h3>
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (dto is null)
+{
+    <div class="alert alert-danger">@mensajeError</div>
+    <a class="btn btn-secondary" href="/huertas">Volver</a>
+}
+else
+{
+    @if (mensajeError is not null)
+    {
+        <div class="alert alert-danger">@mensajeError</div>
+    }
+
+    <EditForm Model="dto" OnValidSubmit="ActualizarAsync">
+        <DataAnnotationsValidator />
+
+        <div class="mb-3">
+            <label class="form-label">Nombre</label>
+            <InputText class="form-control" @bind-Value="dto.Nombre" />
+            <ValidationMessage For="() => dto.Nombre" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Ubicación</label>
+            <InputText class="form-control" @bind-Value="dto.Ubicacion" />
+            <ValidationMessage For="() => dto.Ubicacion" />
+        </div>
+
+        <button class="btn btn-primary" type="submit" disabled="@guardando">Guardar cambios</button>
+        <a class="btn btn-secondary" href="/huertas">Cancelar</a>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ActualizarHuertaDto? dto;
+    private bool cargando = true;
+    private bool guardando;
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var respuesta = await Repository.GetAsync<Huerta>($"api/huertas/{Id}");
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+        }
+        else
+        {
+            var huerta = respuesta.Response!;
+            dto = new ActualizarHuertaDto
+            {
+                Nombre = huerta.Nombre,
+                Ubicacion = huerta.Ubicacion
+            };
+        }
+
+        cargando = false;
+    }
+
+    private async Task ActualizarAsync()
+    {
+        guardando = true;
+        mensajeError = null;
+
+        var respuesta = await Repository.PutAsync($"api/huertas/{Id}", dto!); //204
+        if (respuesta.Error)
+        {
+            mensajeError = await respuesta.GetErrorMessageAsync();
+            guardando = false;
+            return;
+        }
+
+        Navigation.NavigateTo("/huertas");
+    }
+}

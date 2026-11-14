@@ -1,0 +1,182 @@
+﻿@page "/cosechas/editar/{Id:int}"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
+@using Terpy.Shared.DTOs
+@using Terpy.Shared.Entities
+@using Terpy.WEB.Repositories
+
+@inject IRepository Repository
+@inject SweetAlertService Swal
+@inject NavigationManager Navigation
+
+<PageTitle>Editar cosecha</PageTitle>
+
+<h3>Editar cosecha</h3>
+
+@if (Cargando)
+{
+    <p>Cargando información de la cosecha...</p>
+}
+else if (cosecha is null || modelo is null)
+{
+    <div class="alert alert-danger">
+        @mensajeError
+    </div>
+
+    <button class="btn btn-secondary"
+            @onclick="Volver">
+        Volver
+    </button>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(mensajeError))
+    {
+        <div class="alert alert-danger">
+            @mensajeError
+        </div>
+    }
+
+    <EditForm Model="modelo" OnValidSubmit="GuardarCambios">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Siembra asociada</label>
+
+            <input class="form-control"
+                   value="@($"Siembra {cosecha.SiembraId}")"
+                   disabled />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Fecha y hora</label>
+
+            <InputDate class="form-control"
+                       Type="InputDateType.DateTimeLocal"
+                       @bind-Value="modelo.FechaHora" />
+
+            <ValidationMessage For="@(() => modelo.FechaHora)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Cantidad recolectada (kg)</label>
+
+            <InputNumber class="form-control"
+                         @bind-Value="modelo.CantidadKg" />
+
+            <ValidationMessage For="@(() => modelo.CantidadKg)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Observación</label>
+
+            <InputTextArea class="form-control"
+                           rows="4"
+                           @bind-Value="modelo.Observacion" />
+
+            <ValidationMessage For="@(() => modelo.Observacion)" />
+        </div>
+
+        <button type="submit"
+                class="btn btn-primary"
+                disabled="@Guardando">
+            @(Guardando ? "Guardando..." : "Guardar cambios")
+        </button>
+
+        <button type="button"
+                class="btn btn-secondary ms-2"
+                @onclick="Volver">
+            Cancelar
+        </button>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Cosecha? cosecha;
+    private ActualizarCosechaDto? modelo;
+
+    private bool Cargando = true;
+    private bool Guardando = false;
+
+    private string? mensajeError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCosecha();
+    }
+
+    private async Task CargarCosecha()
+    {
+        Cargando = true;
+        mensajeError = null;
+
+        var respuesta = await Repository.GetAsync<Cosecha>(
+            $"/api/cosechas/{Id}");
+
+        if (respuesta.Error || respuesta.Response is null)
+        {
+            mensajeError = "No fue posible cargar la cosecha solicitada.";
+            Cargando = false;
+            return;
+        }
+
+        cosecha = respuesta.Response;
+
+        modelo = new ActualizarCosechaDto
+        {
+            FechaHora = cosecha.FechaHora.ToLocalTime(),
+            CantidadKg = cosecha.CantidadKg,
+            Observacion = cosecha.Observacion
+        };
+
+        Cargando = false;
+    }
+
+    private async Task GuardarCambios()
+    {
+        if (cosecha is null || modelo is null)
+        {
+            return;
+        }
+
+        Guardando = true;
+        mensajeError = null;
+
+        var dto = new ActualizarCosechaDto
+        {
+            FechaHora = modelo.FechaHora.ToUniversalTime(),
+            CantidadKg = modelo.CantidadKg,
+            Observacion = modelo.Observacion
+        };
+
+        var respuesta = await Repository.PutAsync<ActualizarCosechaDto>(
+            $"/api/cosechas/{Id}",
+            dto);
+
+        Guardando = false;
+
+        if (respuesta.Error)
+        {
+            mensajeError = "No fue posible actualizar la cosecha. Revisa los datos e inténtalo nuevamente.";
+            return;
+        }
+
+        await Swal.FireAsync(
+            "¡Actualizada!",
+            "La cosecha se actualizó correctamente.",
+            SweetAlertIcon.Success);
+
+        Volver();
+    }
+
+    private void Volver()
+    {
+        Navigation.NavigateTo("/cosechas");
+    }
+}

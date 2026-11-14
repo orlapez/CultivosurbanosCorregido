@@ -1,0 +1,119 @@
+﻿@page "/siembras"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Terpy.Shared.DTOs
+@using Terpy.Shared.Entities
+@using Terpy.WEB.Repositories
+@inject IRepository repository
+@inject NavigationManager navigationManager
+@inject SweetAlertService swal
+
+<PageTitle>Siembras</PageTitle>
+
+<h3>Siembras</h3>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="mb-3">
+            <a class="btn btn-primary" href="/siembras/crear"><i class="bi bi-plus-circle"></i> Nueva Siembra</a>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@if (errorCarga)
+{
+    <div class="alert alert-danger" role="alert">No se pudo cargar el listado. Intenta nuevamente.</div>
+    <button class="btn btn-secondary" type="button" @onclick="CargarListado">Reintentar</button>
+}
+else
+{
+    <GenericList MyList="siembras">
+        <Body>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Acciones</th>
+                        <th>ID Zona</th>
+                        <th>ID Cultivo</th>
+                        <th>Fecha de Siembra</th>
+                        <th>Cantidad Plantas</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var siembra in siembras!)
+                    {
+                        <tr>
+                            <td>
+                                <AuthorizeView>
+                                    <Authorized>
+                                        <a href="/siembras/editar/@siembra.Id" class="btn btn-warning btn-sm">Editar</a>
+                                        <button class="btn btn-danger btn-sm" @onclick="() => Borrar(siembra)">Borrar</button>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </td>
+                            <td>@siembra.ZonaId</td>
+                            <td>@siembra.CultivoId</td>
+                            <td>@siembra.FechaSiembra.ToShortDateString()</td>
+                            <td>@siembra.CantidadPlantasInicial</td>
+                            <td>@siembra.Estado</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </Body>
+    </GenericList>
+}
+
+@code {
+    private List<Siembra>? siembras;
+    private bool errorCarga;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarListado();
+    }
+
+    private async Task CargarListado()
+    {
+        errorCarga = false;
+        var responseHTTP = await repository.GetAsync<List<Siembra>>("api/siembras");
+        if (responseHTTP.Error)
+        {
+            errorCarga = true;
+            var mensaje = await responseHTTP.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+        siembras = responseHTTP.Response;
+    }
+
+    private async Task Borrar(Siembra siembra)
+    {
+        var confirmacion = await swal.FireAsync(new SweetAlertOptions
+        {
+            Title = "Confirmación",
+            Text = "¿Deseas eliminar esta siembra?",
+            Icon = SweetAlertIcon.Warning,
+            ShowCancelButton = true,
+            ConfirmButtonText = "Sí, eliminar",
+            CancelButtonText = "Cancelar"
+        });
+
+        if (!confirmacion.IsConfirmed)
+        {
+            return;
+        }
+
+        var responseHTTP = await repository.DeleteAsync($"api/siembras/{siembra.Id}");
+
+        if (responseHTTP.Error)
+        {
+            var mensaje = await responseHTTP.GetErrorMessageAsync();
+            await swal.FireAsync("Error", mensaje, SweetAlertIcon.Error);
+            return;
+        }
+
+        await CargarListado();
+    }
+}

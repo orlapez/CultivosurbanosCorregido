@@ -1,0 +1,6 @@
+@Terpy.API_HostAddress = http://localhost:5115
+
+GET {{Terpy.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
